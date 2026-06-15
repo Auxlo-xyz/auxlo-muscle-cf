@@ -2,7 +2,24 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createPublicClient, createWalletClient, http, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
-import { mantle, mantleTestnet } from 'viem/chains';
+import { mantle } from 'viem/chains';
+
+// Mantle Sepolia testnet has chainId 5003, not the default 5001 in viem
+const mantleSepolia = {
+  ...mantle,
+  id: 5003,
+  name: 'Mantle Sepolia',
+  network: 'mantle-sepolia',
+  nativeCurrency: { name: 'MNT', symbol: 'MNT', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://rpc.sepolia.mantle.xyz'] },
+    public: { http: ['https://rpc.sepolia.mantle.xyz'] },
+  },
+  blockExplorers: {
+    default: { name: 'Mantle Sepolia Explorer', url: 'https://sepolia.mantlescan.xyz' },
+  },
+  testnetsCORSBypass: true,
+} as const
 
 interface Env {
   MUSCLE_API_KEY: string;
@@ -25,6 +42,7 @@ app.get('/', (c) => {
       'POST /balance': 'Get MNT balance for an address',
       'POST /ledger': 'Get chain info (block number, gas price)',
       'POST /wallet': 'Create a new wallet',
+      'POST /derive-address': 'Derive address from private key',
     }
   });
 });
@@ -48,7 +66,7 @@ app.post('/send', async (c) => {
   }
 
   try {
-    const chain = network === 'mainnet' ? mantle : mantleTestnet;
+    const chain = network === 'mainnet' ? mantle : mantleSepolia;
     const rpcUrl = network === 'mainnet' ? c.env.MANTLE_RPC_MAINNET : c.env.MANTLE_RPC_TESTNET;
 
     const account = privateKeyToAccount(key as `0x${string}`);
@@ -110,7 +128,7 @@ app.post('/balance', async (c) => {
   }
 
   try {
-    const chain = network === 'mainnet' ? mantle : mantleTestnet;
+    const chain = network === 'mainnet' ? mantle : mantleSepolia;
     const rpcUrl = network === 'mainnet' ? c.env.MANTLE_RPC_MAINNET : c.env.MANTLE_RPC_TESTNET;
 
     const publicClient = createPublicClient({
@@ -148,7 +166,7 @@ app.post('/ledger', async (c) => {
   const { network = 'testnet' } = body;
 
   try {
-    const chain = network === 'mainnet' ? mantle : mantleTestnet;
+    const chain = network === 'mainnet' ? mantle : mantleSepolia;
     const rpcUrl = network === 'mainnet' ? c.env.MANTLE_RPC_MAINNET : c.env.MANTLE_RPC_TESTNET;
 
     const publicClient = createPublicClient({
@@ -189,6 +207,27 @@ app.post('/wallet', async (c) => {
     });
   } catch (error: any) {
     return c.json({ error: error.message || 'Wallet creation failed' }, 500);
+  }
+});
+
+app.post('/derive-address', async (c) => {
+  const apiKey = c.req.header('x-api-key') || c.req.header('authorization')?.replace('Bearer ', '');
+  if (apiKey !== c.env.MUSCLE_API_KEY) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const body = await c.req.json();
+  const { privateKey } = body;
+
+  if (!privateKey || typeof privateKey !== 'string' || !privateKey.startsWith('0x')) {
+    return c.json({ error: 'Missing or invalid privateKey. Must start with 0x.' }, 400);
+  }
+
+  try {
+    const account = privateKeyToAccount(privateKey as `0x${string}`);
+    return c.json({ address: account.address });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to derive address' }, 500);
   }
 });
 
