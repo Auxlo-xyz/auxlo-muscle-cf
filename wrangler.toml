@@ -1,0 +1,13 @@
+name = "auxlo-muscle"
+main = "src/index.ts"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+MANTLE_RPC_MAINNET = "https://rpc.mantle.xyz"
+MANTLE_RPC_TESTNET = "https://rpc.sepolia.mantle.xyz"
+
+# Secrets (set via: wrangler secret put <NAME>)
+# - MUSCLE_API_KEY
+# - MANTLE_PRIVATE_KEY (optional, for server-side signing)
+# - WALLET_ENCRYPTION_KEY (for encrypted key storage)
